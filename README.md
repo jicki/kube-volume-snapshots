@@ -9,6 +9,9 @@
 
 ## 🚀 功能特性
 
+<img width="2531" height="723" alt="image" src="https://github.com/user-attachments/assets/9859b65f-1f2f-41ad-8e28-99b987e2d61d" />
+
+
 ### 核心功能
 - 🗂️ **VolumeSnapshotClass 管理** - 展示集群中的快照类及关联的存储类
 - 📸 **VolumeSnapshot 管理** - 创建、查看、删除卷快照，支持多命名空间
