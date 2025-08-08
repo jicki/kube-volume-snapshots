@@ -1,0 +1,38 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: volume-snapshot-manager
+rules:
+# 访问 PVC、PV 和命名空间
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims", "persistentvolumes", "namespaces"]
+  verbs: ["get", "list"]
+# 访问存储类
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list"]
+# 访问快照相关资源
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshotclasses", "volumesnapshots", "volumesnapshotcontents"]
+  verbs: ["get", "list", "create", "delete", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: volume-snapshot-manager-binding
+subjects:
+- kind: ServiceAccount
+  name: volume-snapshot-manager
+  namespace: kube-snapshots
+roleRef:
+  kind: ClusterRole
+  name: volume-snapshot-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: volume-snapshot-manager
+  namespace: kube-snapshots

@@ -1,0 +1,51 @@
+---
+# 多集群配置文件
+# Multi-cluster configuration for k8s-volume-snapshots
+
+# 默认集群（如果未指定集群，将使用此集群）
+default_cluster: "production"
+
+# 集群配置列表
+clusters:
+  # 生产环境集群
+  - name: "production"
+    display_name: "生产环境"
+    description: "主生产环境 Kubernetes 集群"
+    kubeconfig: "/root/.kube/config-prod"  # kubeconfig 文件路径
+    enabled: true
+    # 可选：直接配置集群连接参数
+    # server: "https://k8s-api.example.com:6443"
+    # token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+    # certificate_authority_data: "LS0tLS1CRUdJTi..."
+    
+  # 测试环境集群  
+  - name: "testing"
+    display_name: "测试环境"
+    description: "测试环境 Kubernetes 集群"
+    kubeconfig: "/root/.kube/config-test"
+    enabled: true
+    
+  # 开发环境集群
+  - name: "development"
+    display_name: "开发环境" 
+    description: "开发环境 Kubernetes 集群"
+    kubeconfig: "/root/.kube/config-dev"
+    enabled: true
+    
+  # 灾备集群
+  - name: "disaster-recovery"
+    display_name: "灾备环境"
+    description: "灾备 Kubernetes 集群"
+    kubeconfig: "/root/.kube/config-dr"
+    enabled: false  # 默认禁用
+    
+# 全局配置
+global:
+  # 连接超时时间（秒）
+  timeout: 30
+  # 请求QPS限制
+  qps: 50
+  # 突发请求限制
+  burst: 100
+  # 缓存刷新间隔（分钟）
+  cache_refresh_interval: 5

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  k8s-volume-snapshots:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: k8s-volume-snapshots
+    ports:
+      - "8081:8081"
+    environment:
+      - GIN_MODE=release
+    volumes:
+      # 挂载 kubeconfig（用于集群外部署）
+      - ~/.kube/config:/root/.kube/config:ro
+      # 挂载多集群配置文件
+      - ../config/clusters.yaml:/etc/k8s-volume-snapshots/clusters.yaml:ro
+      # 可以根据需要挂载多个 kubeconfig 文件
+      # - ~/.kube/config-prod:/root/.kube/config-prod:ro
+      # - ~/.kube/config-test:/root/.kube/config-test:ro
+      # - ~/.kube/config-dev:/root/.kube/config-dev:ro
+    restart: unless-stopped
+
+# 单一服务，不需要网络配置

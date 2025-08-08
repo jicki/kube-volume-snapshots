@@ -1,0 +1,267 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-kubeconfig
+  namespace: kube-snapshots
+  labels:
+    app: k8s-volume-snapshots
+data:
+  development: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - cluster:
+        certificate-authority-data: xxxxxxxxx
+        server: https://10.9.9.1:6443
+      name: development-k8s-cluster
+    contexts:
+    - context:
+        cluster: development-k8s-cluster
+        user: volume-snapshot-manager
+        namespace: kube-snapshots
+      name: volume-snapshot-manager@development-k8s-cluster
+    current-context: volume-snapshot-manager@development-k8s-cluster
+    users:
+    - name: volume-snapshot-manager
+      user:
+        token: xxxxxxxxx
+  staging: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - cluster:
+        certificate-authority-data: xxxxxxxxx
+        server: https://10.10.10.1:6443
+      name: stg-k8s-cluster
+    contexts:
+    - context:
+        cluster: stg-k8s-cluster
+        user: volume-snapshot-manager
+        namespace: kube-snapshots
+      name: volume-snapshot-manager@stg-k8s-cluster
+    current-context: volume-snapshot-manager@stg-k8s-cluster
+    users:
+    - name: volume-snapshot-manager
+      user:
+        token: xxxxxxxxx
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: multi-cluster-config
+  namespace: kube-snapshots
+  labels:
+    app: k8s-volume-snapshots
+data:
+  clusters.yaml: |
+    ---
+    # 多集群配置文件
+    # Multi-cluster configuration for k8s-volume-snapshots
+    
+    # 默认集群（如果未指定集群，将使用此集群）
+    default_cluster: "development"
+    
+    # 集群配置列表
+    clusters:
+      # 开发环境集群（使用 Service Account）
+      - name: "development"
+        display_name: "development-k8s-cluster"
+        description: "development Kubernetes 集群"
+        enabled: true
+        # 在集群内部署时，留空使用 Service Account
+        kubeconfig: "/etc/k8s-clusters/development"
+        
+      # staging环境集群（如果有多个集群的话）
+      - name: "staging"
+        display_name: "stg-k8s-cluster"
+        description: "staging Kubernetes 集群"
+        enabled: true
+        kubeconfig: "/etc/k8s-clusters/staging"
+
+    # 全局配置
+    global:
+      # 连接超时时间（秒）
+      timeout: 30
+      # 请求QPS限制
+      qps: 50
+      # 突发请求限制
+      burst: 100
+      # 缓存刷新间隔（分钟）
+      cache_refresh_interval: 5
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ceph-config
+  namespace: kube-snapshots
+  labels:
+    app: k8s-volume-snapshots
+data:
+  ceph.conf: |
+    [global]
+    # Ceph集群配置
+    fsid = xxxxxxxxxxxxxxxxxx
+    mon_host = 10.1.1.2:6789,10.1.1.3:6789,10.1.1.4:6789
+    
+    # 认证配置
+    auth_cluster_required = cephx
+    auth_service_required = cephx
+    auth_client_required = cephx
+
+    # 网络配置  
+    public_network = 10.1.1.0/24
+    cluster_network = 10.1.1.0/24
+    
+    # 性能调优配置
+    osd_pool_default_size = 3
+    osd_pool_default_min_size = 2
+    osd_pool_default_pg_num = 128
+    osd_pool_default_pgp_num = 128
+    
+    # 日志配置
+    log_file = /var/log/ceph/$cluster-$type.$id.log
+    log_to_syslog = false
+    log_to_stderr = false
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ceph-keyring-readonly
+  namespace: kube-snapshots
+  labels:
+    app: k8s-volume-snapshots
+    security: readonly
+type: Opaque
+data:
+  # 该用户只有读取权限: mon 'allow r', osd 'allow r', mgr 'allow r'
+  #  base64 -d 如下:
+  #[client.test]
+  #        key = xxxxxxxxx
+  #        caps mgr = "allow r"
+  #        caps mon = "allow r"
+  #        caps osd = "allow r"
+  #        caps mds = "allow r"
+  #
+  ceph.client.test.keyring: |
+    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: k8s-volume-snapshots
+  namespace: kube-snapshots
+  labels:
+    app: k8s-volume-snapshots
+spec:
+  serviceName: k8s-volume-snapshots-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-volume-snapshots
+  template:
+    metadata:
+      labels:
+        app: k8s-volume-snapshots
+    spec:
+      serviceAccountName: volume-snapshot-manager
+      containers:
+      - name: k8s-volume-snapshots
+        image: k8s-volume-snapshots:2.2.3-amd64
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8081
+        env:
+        - name: GIN_MODE
+          value: "release"
+        - name: TZ
+          value: "Asia/Shanghai"
+        - name: MULTI_CLUSTER_CONFIG
+          value: "/etc/k8s-volume-snapshots/clusters.yaml"
+        - name: CEPH_CONF
+          value: "/etc/ceph/ceph.conf"
+        - name: CEPH_KEYRING
+          value: "/etc/ceph/ceph.client.test.keyring"
+        volumeMounts:
+        - name: data-storage
+          mountPath: /data
+        - name: multi-cluster-config
+          mountPath: /etc/k8s-volume-snapshots/clusters.yaml
+          subPath: clusters.yaml
+          readOnly: true
+        - name: cluster-kubeconfig
+          mountPath: /etc/k8s-clusters/
+          readOnly: true
+        - name: ceph-config
+          mountPath: /etc/ceph/ceph.conf
+          subPath: ceph.conf
+          readOnly: true
+        - name: ceph-keyring-readonly
+          mountPath: /etc/ceph/ceph.client.test.keyring
+          subPath: ceph.client.test.keyring
+          readOnly: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: multi-cluster-config
+        configMap:
+          name: multi-cluster-config
+          defaultMode: 0644
+      - name: cluster-kubeconfig
+        configMap:
+          name: cluster-kubeconfig
+          defaultMode: 0644
+      - name: ceph-config
+        configMap:
+          name: ceph-config
+          defaultMode: 0644
+      - name: ceph-keyring-readonly
+        secret:
+          secretName: ceph-keyring-readonly
+          defaultMode: 0600
+  volumeClaimTemplates:
+  - metadata:
+      name: data-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "local-storage"
+      resources:
+        requests:
+          storage: 1Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-volume-snapshots-service
+  namespace: kube-snapshots
+spec:
+  selector:
+    app: k8s-volume-snapshots
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 8081
+      name: http
+  type: ClusterIP

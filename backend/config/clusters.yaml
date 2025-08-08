@@ -1,0 +1,16 @@
+---
+# 多集群配置文件 - 测试配置
+default_cluster: "default"
+
+clusters:
+  - name: "default"
+    display_name: "默认集群"
+    description: "默认 Kubernetes 集群（测试环境）"
+    enabled: true
+    # 空的 kubeconfig 将使用默认配置（集群内或 ~/.kube/config）
+
+global:
+  timeout: 30
+  qps: 50
+  burst: 100
+  cache_refresh_interval: 5
