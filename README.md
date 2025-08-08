@@ -190,15 +190,18 @@ kind: ClusterRole
 metadata:
   name: volume-snapshot-manager
 rules:
+# 访问 PVC、PV 和命名空间
 - apiGroups: [""]
-  resources: ["persistentvolumeclaims", "namespaces"]
+  resources: ["persistentvolumeclaims", "persistentvolumes", "namespaces"]
   verbs: ["get", "list"]
-- apiGroups: ["storage.k8s.io"]  
+# 访问存储类
+- apiGroups: ["storage.k8s.io"]
   resources: ["storageclasses"]
   verbs: ["get", "list"]
+# 访问快照相关资源
 - apiGroups: ["snapshot.storage.k8s.io"]
   resources: ["volumesnapshotclasses", "volumesnapshots", "volumesnapshotcontents"]
-  verbs: ["get", "list", "create", "delete"]
+  verbs: ["get", "list", "create", "delete", "update"]
 ```
 
 应用 RBAC 配置：
